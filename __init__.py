@@ -1,35 +1,42 @@
 import torch
 
+
 def randn_like(cond, generator=None):
     return torch.randn(cond.size(), generator=generator).to(cond)
+
 
 class CADS:
     generator = None
     current_step = 0
+
     @classmethod
     def IS_CHANGED(*args, **kwargs):
         return id(CADS.generator)
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL",), 
-                             "noise_scale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.25}),
-                             "t1": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.6}),
-                             "t2": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
-                             "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
-                             },
-                "optional": {
-                             "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
-                             "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
-                }}
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "noise_scale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.25}),
+                "t1": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.6}),
+                "t2": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
+                "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
+            },
+            "optional": {
+                "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
+                "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
+            },
+        }
+
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "do"
 
     CATEGORY = "utils"
 
     def do(self, model, noise_scale, t1, t2, rescale, start_step=0, total_steps=0):
-        previous_wrapper = model.model_options.get('model_function_wrapper')
-        
+        previous_wrapper = model.model_options.get("model_function_wrapper")
+
         im = model.model.model_sampling
         CADS.current_step = start_step
 
@@ -98,15 +105,12 @@ class CADS:
 
             return uncond + (cond - uncond) * cond_scale
 
-
-        
         m = model.clone()
         m.set_model_unet_function_wrapper(apply_cads)
         # Alternative implementation. Doesn't seem to do the right thing
-        #m.set_model_sampler_cfg_function(apply_cads_cfg)
-        
+        # m.set_model_sampler_cfg_function(apply_cads_cfg)
+
         return (m,)
 
-NODE_CLASS_MAPPINGS = {
-  'CADS': CADS
-}
+
+NODE_CLASS_MAPPINGS = {"CADS": CADS}
