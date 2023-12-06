@@ -1,4 +1,4 @@
-# CADS implementation for ComfyUI
+# Experimental CADS implementation for ComfyUI
 
 Attempts to implement [CADS](https://arxiv.org/abs/2310.17347) for ComfyUI.
 
