@@ -5,6 +5,11 @@ def randn_like(cond, generator=None):
     return torch.randn(cond.size(), generator=generator).to(cond)
 
 
+# From samplers.py
+COND = 0
+UNCOND = 1
+
+
 class CADS:
     generator = None
     current_step = 0
@@ -26,6 +31,7 @@ class CADS:
                 "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
                 "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
+                "apply_to": (["both", "cond", "uncond"],),
             },
         }
 
@@ -34,11 +40,17 @@ class CADS:
 
     CATEGORY = "utils"
 
-    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1):
+    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both"):
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
         CADS.current_step = start_step
+
+        skip = None
+        if apply_to == "cond":
+            skip = UNCOND
+        elif apply_to == "uncond":
+            skip = COND
 
         def cads_gamma(sigma):
             if start_step >= total_steps:
@@ -78,12 +90,14 @@ class CADS:
         def apply_cads(apply_model, args):
             input_x = args["input"]
             timestep = args["timestep"]
+            cond_or_uncond = args["cond_or_uncond"]
             c = args["c"]
 
             if noise_scale > 0.0:
                 gamma = cads_gamma(timestep)
-                # Could do this without a for loop for a very slight increase in perf, but it changes how means get calculated for scaling
                 for i in range(c["c_crossattn"].size(dim=0)):
+                    if cond_or_uncond[i % len(cond_or_uncond)] == skip:
+                        continue
                     c["c_crossattn"][i] = cads_noise(gamma, c["c_crossattn"][i])
 
             if previous_wrapper:

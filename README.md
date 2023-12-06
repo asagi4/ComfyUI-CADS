@@ -16,6 +16,8 @@ The node sets a unet wrapper function, but attempts to preserve any existing wra
 
 The `rescale` parameter applies optional normalization to the noised conditioning. It's disabled at 0.
 
+`apply_to` allows you to apply the noise selectively.
+
 # Bugs
 
 
