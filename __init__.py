@@ -72,7 +72,7 @@ class CADS:
             if y is None:
                 return None
             s = noise_scale
-            noise = randn_like(y)
+            noise = randn_like(y, self.generator)
             gamma = torch.tensor(gamma).to(y)
             psi = rescale
             if psi > 0:
@@ -96,6 +96,7 @@ class CADS:
             if noise_scale > 0.0:
                 gamma = cads_gamma(timestep)
                 for i in range(c["c_crossattn"].size(dim=0)):
+                    self.generator = torch.manual_seed(int(timestep[0]*1000) + i)
                     if cond_or_uncond[i % len(cond_or_uncond)] == skip:
                         continue
                     c["c_crossattn"][i] = cads_noise(gamma, c["c_crossattn"][i])
