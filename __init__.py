@@ -11,12 +11,11 @@ UNCOND = 1
 
 
 class CADS:
-    generator = None
     current_step = 0
 
     @classmethod
     def IS_CHANGED(*args, **kwargs):
-        return id(CADS.generator)
+        return float("nan")
 
     @classmethod
     def INPUT_TYPES(s):
