@@ -10,7 +10,7 @@ Apply the node to a model and set `noise_scale` > 0.0.
 
 The node sets a unet wrapper function, but attempts to preserve any existing wrappers, so apply it after other nodes that set a unet wrapper function, and it might still work.
 
-`t1` and `t2` affect the scaling of the added noise; after `t1`, the noise scales down until `t2`, after which no noise is added anymore and the unnoised prompt is used
+`t1` and `t2` affect the scaling of the added noise; after `t2`, the noise scales down until `t1`, after which no noise is added anymore and the unnoised prompt is used. The diffusion process runs **backwards** from 1 to 0, so `t2` is greater than `t1`.
 
 `start_step` and `total_steps` are optional values that affect how the noise scaling schedule is calculated. If `start_step` is greater or equal to `total_steps`, the algorithm uses the sampler's timestep value instead which is not necessarily linear as it's affected by the sampler scheduler.
 
