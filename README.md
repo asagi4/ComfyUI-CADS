@@ -16,14 +16,11 @@ The node sets a unet wrapper function, but attempts to preserve any existing wra
 
 The `rescale` parameter applies optional normalization to the noised conditioning. It's disabled at 0.
 
-`apply_to` allows you to apply the noise selectively.
+`apply_to` allows you to apply the noise selectively. `key` selects where to add the noise.
 
 # Bugs
 
+Noise was previously applied to cross attention. It's now applied by default to the regular conditioning `y`, which seems to make more sense. Use the `key` parameter to restore the old behaviour.
 
 The implementation might not be correct at all; I'm not 100% clear on the math as to where the noise is actually supposed to be added.
 and I couldn't make it produce quite the same results as the A1111 node. The algorithm still seems to help with variety though.
-
-Not tested with SDXL. Might do weird things.
-
-I'm not sure if the rescale parameter does anything useful, but feel free to experiment.

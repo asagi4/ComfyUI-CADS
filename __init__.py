@@ -31,6 +31,7 @@ class CADS:
                 "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "apply_to": (["both", "cond", "uncond"],),
+                "key": (["y", "c_crossattn"],),
             },
         }
 
@@ -39,7 +40,7 @@ class CADS:
 
     CATEGORY = "utils"
 
-    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both"):
+    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both", key="y"):
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
@@ -94,10 +95,10 @@ class CADS:
 
             if noise_scale > 0.0:
                 gamma = cads_gamma(timestep)
-                for i in range(c["c_crossattn"].size(dim=0)):
+                for i in range(c[key].size(dim=0)):
                     if cond_or_uncond[i % len(cond_or_uncond)] == skip:
                         continue
-                    c["c_crossattn"][i] = cads_noise(gamma, c["c_crossattn"][i])
+                    c[key][i] = cads_noise(gamma, c[key][i])
 
             if previous_wrapper:
                 return previous_wrapper(apply_model, args)
@@ -120,8 +121,6 @@ class CADS:
 
         m = model.clone()
         m.set_model_unet_function_wrapper(apply_cads)
-        # Alternative implementation. Doesn't seem to do the right thing
-        # m.set_model_sampler_cfg_function(apply_cads_cfg)
 
         return (m,)
 
