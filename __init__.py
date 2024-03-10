@@ -30,7 +30,7 @@ class CADS:
                 "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
                 "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
-                "apply_to": (["both", "cond", "uncond"],),
+                "apply_to": (["uncond", "cond", "both"],),
                 "key": (["y", "c_crossattn"],),
             },
         }
