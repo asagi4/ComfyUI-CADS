@@ -105,20 +105,6 @@ class CADS:
 
             return apply_model(input_x, timestep, **c)
 
-        # Does not work :(
-        def apply_cads_cfg(args):
-            x = args["input"]
-            cond = args["cond"]
-            uncond = args["uncond"]
-            cond_scale = args["cond_scale"]
-            gamma = cads_gamma(0)
-            if noise_scale > 0:
-                print(f"Apply CADS in cfg {gamma=}")
-                cond = x - cads_noise(gamma, x - cond)
-                uncond = x - cads_noise(gamma, x - uncond)
-
-            return uncond + (cond - uncond) * cond_scale
-
         m = model.clone()
         m.set_model_unet_function_wrapper(apply_cads)
 
