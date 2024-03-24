@@ -12,10 +12,7 @@ UNCOND = 1
 
 class CADS:
     current_step = 0
-
-    @classmethod
-    def IS_CHANGED(*args, **kwargs):
-        return float("nan")
+    last_sigma = None
 
     @classmethod
     def INPUT_TYPES(s):
@@ -44,7 +41,8 @@ class CADS:
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
-        CADS.current_step = start_step
+        self.current_step = start_step
+        self.last_sigma = None
 
         skip = None
         if apply_to == "cond":
@@ -57,8 +55,12 @@ class CADS:
                 ts = im.timestep(sigma[0])
                 t = round(ts.item() / 999.0, 2)
             else:
-                t = 1.0 - min(1.0, max(CADS.current_step / total_steps, 0.0))
-                CADS.current_step += 1
+                sigma_max = sigma.max().item()
+                if self.last_sigma is not None and sigma_max > self.last_sigma:
+                    self.current_step = start_step
+                t = 1.0 - min(1.0, max(self.current_step / total_steps, 0.0))
+                self.current_step += 1
+                self.last_sigma = sigma_max
 
             if t <= t1:
                 r = 1.0
