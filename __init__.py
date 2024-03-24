@@ -14,10 +14,6 @@ class CADS:
     current_step = 0
 
     @classmethod
-    def IS_CHANGED(*args, **kwargs):
-        return float("nan")
-
-    @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
@@ -25,6 +21,7 @@ class CADS:
                 "noise_scale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.25}),
                 "t1": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.6}),
                 "t2": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             },
             "optional": {
                 "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
@@ -40,11 +37,12 @@ class CADS:
 
     CATEGORY = "utils"
 
-    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both", key="y"):
+    def do(self, model, noise_scale, t1, t2, seed, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both", key="y"):
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
         CADS.current_step = start_step
+        generator = torch.Generator(device="cpu").manual_seed(seed)
 
         skip = None
         if apply_to == "cond":
@@ -72,7 +70,7 @@ class CADS:
             if y is None:
                 return None
             s = noise_scale
-            noise = randn_like(y)
+            noise = randn_like(y, generator=generator)
             gamma = torch.tensor(gamma).to(y)
             psi = rescale
             if psi > 0:
