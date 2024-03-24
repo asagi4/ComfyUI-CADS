@@ -1,9 +1,27 @@
+import numpy as np
 import torch
 
 
-def randn_like(cond, generator=None):
-    return torch.randn(cond.size(), generator=generator).to(cond)
+# Function copied from: https://github.com/v0xie/sd-webui-cads
+def add_noise(y, gamma, noise_scale, psi, rescale=False):
+    """ CADS adding noise to the condition
 
+    Arguments:
+    y: Input conditioning
+    gamma: Noise level w.r.t t
+    noise_scale (float): Noise scale
+    psi (float): Rescaling factor
+    rescale (bool): Rescale the condition
+    """
+    y_mean, y_std = torch.mean(y), torch.std(y)
+    y = np.sqrt(gamma) * y + noise_scale * np.sqrt(1-gamma) * torch.randn_like(y)
+    if rescale:
+        y_scaled = (y - torch.mean(y)) / torch.std(y) * y_std + y_mean
+        if not torch.isnan(y_scaled).any():
+            y = psi * y_scaled + (1 - psi) * y
+        else:
+            print("Warning: NaN encountered in rescaling")
+    return y
 
 # From samplers.py
 COND = 0
@@ -19,12 +37,13 @@ class CADS:
         return {
             "required": {
                 "model": ("MODEL",),
-                "noise_scale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.25}),
+                "noise_scale": ("FLOAT", {"min": -100.0, "max": 100.0, "step": 0.01, "default": 0.25}),
                 "t1": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.6}),
                 "t2": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
             },
             "optional": {
-                "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
+                "mixing_factor": ("FLOAT", {"min": -100.0, "max": 100.0, "step": 0.01, "default": 1.0}),
+                "rescale": ("BOOLEAN", {"default": False}),
                 "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "apply_to": (["uncond", "cond", "both"],),
@@ -37,7 +56,7 @@ class CADS:
 
     CATEGORY = "utils"
 
-    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both", key="y"):
+    def do(self, model, noise_scale, t1, t2, mixing_factor=1.0, rescale=False, start_step=-1, total_steps=-1, apply_to="both", key="y"):
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
@@ -70,38 +89,19 @@ class CADS:
                 r = (t2 - t) / (t2 - t1)
             return r
 
-        def cads_noise(gamma, y):
-            if y is None:
-                return None
-            s = noise_scale
-            noise = randn_like(y)
-            gamma = torch.tensor(gamma).to(y)
-            psi = rescale
-            if psi > 0:
-                y_mean, y_std = y.mean(), y.std()
-            y = gamma.sqrt().item() * y + s * (1 - gamma).sqrt().item() * noise
-            # FIXME: does this work at all like it's supposed to?
-            if psi > 0:
-                y_scaled = (y - y.mean()) / y.std() * y_std + y_mean
-                if not y_scaled.isnan().any():
-                    y = psi * y_scaled + (1 - psi) * y
-                else:
-                    print("Warning, NaNs during rescale")
-            return y
-
         def apply_cads(apply_model, args):
             input_x = args["input"]
             timestep = args["timestep"]
             cond_or_uncond = args["cond_or_uncond"]
             c = args["c"]
 
-            if noise_scale > 0.0:
+            if noise_scale != 0.0:
                 noise_target = c.get(key, c["c_crossattn"])
                 gamma = cads_gamma(timestep)
                 for i in range(noise_target.size(dim=0)):
                     if cond_or_uncond[i % len(cond_or_uncond)] == skip:
                         continue
-                    noise_target[i] = cads_noise(gamma, noise_target[i])
+                    noise_target[i] = add_noise(noise_target[i], gamma, noise_scale, mixing_factor, rescale)
 
             if previous_wrapper:
                 return previous_wrapper(apply_model, args)
