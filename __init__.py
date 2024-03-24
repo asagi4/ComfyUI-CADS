@@ -94,11 +94,12 @@ class CADS:
             c = args["c"]
 
             if noise_scale > 0.0:
+                noise_target = c.get(key, c["c_crossattn"])
                 gamma = cads_gamma(timestep)
-                for i in range(c[key].size(dim=0)):
+                for i in range(noise_target.size(dim=0)):
                     if cond_or_uncond[i % len(cond_or_uncond)] == skip:
                         continue
-                    c[key][i] = cads_noise(gamma, c[key][i])
+                    noise_target[i] = cads_noise(gamma, noise_target[i])
 
             if previous_wrapper:
                 return previous_wrapper(apply_model, args)
