@@ -1,8 +1,14 @@
 import torch
 
 
-def randn_like(cond, generator=None):
-    return torch.randn(cond.size(), generator=generator).to(cond)
+def generate_noise(cond, generator=None, noise_type="normal"):
+    t = torch.empty_like(cond)
+    if noise_type == "uniform":
+        return t.uniform_()
+    elif noise_type == "exponential":
+        return t.exponential_()
+    else:
+        return t.normal_()
 
 
 # From samplers.py
@@ -19,7 +25,7 @@ class CADS:
         return {
             "required": {
                 "model": ("MODEL",),
-                "noise_scale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.25}),
+                "noise_scale": ("FLOAT", {"min": -5.0, "max": 5.0, "step": 0.01, "default": 0.25}),
                 "t1": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.6}),
                 "t2": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
             },
@@ -29,6 +35,7 @@ class CADS:
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "apply_to": (["uncond", "cond", "both"],),
                 "key": (["y", "c_crossattn"],),
+                "noise_type": (["normal", "uniform", "exponential"],),
             },
         }
 
@@ -37,7 +44,19 @@ class CADS:
 
     CATEGORY = "utils"
 
-    def do(self, model, noise_scale, t1, t2, rescale=0.0, start_step=-1, total_steps=-1, apply_to="both", key="y"):
+    def do(
+        self,
+        model,
+        noise_scale,
+        t1,
+        t2,
+        rescale=0.0,
+        start_step=-1,
+        total_steps=-1,
+        apply_to="both",
+        key="y",
+        noise_type="normal",
+    ):
         previous_wrapper = model.model_options.get("model_function_wrapper")
 
         im = model.model.model_sampling
@@ -73,15 +92,14 @@ class CADS:
         def cads_noise(gamma, y):
             if y is None:
                 return None
-            s = noise_scale
-            noise = randn_like(y)
+            noise = generate_noise(y, noise_type=noise_type)
             gamma = torch.tensor(gamma).to(y)
             psi = rescale
-            if psi > 0:
+            if psi != 0:
                 y_mean, y_std = y.mean(), y.std()
-            y = gamma.sqrt().item() * y + s * (1 - gamma).sqrt().item() * noise
+            y = gamma.sqrt().item() * y + noise_scale * (1 - gamma).sqrt().item() * noise
             # FIXME: does this work at all like it's supposed to?
-            if psi > 0:
+            if psi != 0:
                 y_scaled = (y - y.mean()) / y.std() * y_std + y_mean
                 if not y_scaled.isnan().any():
                     y = psi * y_scaled + (1 - psi) * y
@@ -95,7 +113,7 @@ class CADS:
             cond_or_uncond = args["cond_or_uncond"]
             c = args["c"]
 
-            if noise_scale > 0.0:
+            if noise_scale != 0.0:
                 noise_target = c.get(key, c["c_crossattn"])
                 gamma = cads_gamma(timestep)
                 for i in range(noise_target.size(dim=0)):

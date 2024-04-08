@@ -8,7 +8,9 @@ There isn't any real way to tell what effect CADS will have on your generations,
 
 # Usage
 
-Apply the node to a model and set `noise_scale` > 0.0.
+Apply the node to a model and set `noise_scale` to a nonzero value. The scale can also be negative, but values too far from 0 will result in garbage unless `rescale` is also used.
+
+The `rescale` parameter applies normalization to the noised conditioning and combines them with a weighted sum. It's disabled at 0 and at 1, only the normalized value is used.
 
 The node sets a unet wrapper function, but attempts to preserve any existing wrappers, so apply it after other nodes that set a unet wrapper function, and it might still work.
 
@@ -16,9 +18,10 @@ The node sets a unet wrapper function, but attempts to preserve any existing wra
 
 `start_step` and `total_steps` are optional values that affect how the noise scaling schedule is calculated. If `start_step` is greater or equal to `total_steps`, the algorithm uses the sampler's timestep value instead which is not necessarily linear as it's affected by the sampler scheduler.
 
-The `rescale` parameter applies optional normalization to the noised conditioning. It's disabled at 0.
 
 `apply_to` allows you to apply the noise selectively, defaulting to `uncond`. `key` selects where to add the noise.
+
+`noise_type` determines the probability distribution of the generated noise.
 
 # Bugs
 
