@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-cads"
-description = "Attempts to implement [a/CADS](https://arxiv.org/abs/2310.17347) for ComfyUI. Credit also to the [a/A1111 implementation](https://github.com/v0xie/sd-webui-cads/tree/main) that I used as a reference."
+description = "Attempts to implement [a/CADS](https://arxiv.org/abs/2310.17347) for ComfyUI."
 version = "1.0.0"
 license = "LICENSE"
 
@@ -9,6 +9,6 @@ Repository = "https://github.com/asagi4/ComfyUI-CADS"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "asagi4"
 DisplayName = "ComfyUI-CADS"
 Icon = ""
