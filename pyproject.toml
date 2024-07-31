@@ -2,7 +2,7 @@
 name = "comfyui-cads"
 description = "Attempts to implement [a/CADS](https://arxiv.org/abs/2310.17347) for ComfyUI."
 version = "1.0.0"
-license = "LICENSE"
+license = { file = "LICENSE" }
 
 [project.urls]
 Repository = "https://github.com/asagi4/ComfyUI-CADS"
