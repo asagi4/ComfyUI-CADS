@@ -4,7 +4,7 @@ Attempts to implement [CADS](https://arxiv.org/abs/2310.17347) for ComfyUI.
 
 Credit also to the [A1111 implementation](https://github.com/v0xie/sd-webui-cads/tree/main) that I used as a reference.
 
-There isn't any real way to tell what effect CADS will have on your generations, but you can load [this example workflow](workflows/CADScompare.json?raw=1) into ComfyUI to compare between CADS and non-CADS generations.
+There isn't any real way to tell what effect CADS will have on your generations, but you can load [this example workflow](example_workflows/CADScompare.json?raw=1) into ComfyUI to compare between CADS and non-CADS generations.
 
 # Usage
 
