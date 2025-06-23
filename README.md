@@ -19,13 +19,14 @@ The node sets a unet wrapper function, but attempts to preserve any existing wra
 `start_step` and `total_steps` are optional values that affect how the noise scaling schedule is calculated. If `start_step` is greater or equal to `total_steps`, the algorithm uses the sampler's timestep value instead which is not necessarily linear as it's affected by the sampler scheduler.
 
 
-`apply_to` allows you to apply the noise selectively, defaulting to `uncond`. `key` selects where to add the noise.
+`apply_to` allows you to apply the noise selectively, defaulting to `both`. `key` selects where to add the noise.
 
 `noise_type` determines the probability distribution of the generated noise.
+
+`seed` can be used to set the seed for the generated noise. If it's -1, the global seed will be used.
 
 # Bugs
 
 Noise was previously applied to cross attention. It's now applied by default to the regular conditioning `y`, which seems to make more sense. Use the `key` parameter to restore the old behaviour.
 
-The implementation might not be correct at all; I'm not 100% clear on the math as to where the noise is actually supposed to be added.
-and I couldn't make it produce quite the same results as the A1111 node. The algorithm still seems to help with variety though.
+The implementation might not be correct at all; I'm not 100% clear on the math as to where the noise is actually supposed to be added and I couldn't make it produce quite the same results as the A1111 node. The algorithm still seems to help with variety though.
