@@ -1,4 +1,5 @@
 import torch
+from math import sqrt
 
 
 def generate_noise(cond, generator=None, noise_type="normal"):
@@ -34,8 +35,9 @@ class CADS:
                 "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
                 "apply_to": (["uncond", "cond", "both"],),
-                "key": (["y", "c_crossattn"],),
+                "key": (["both", "y", "c_crossattn"],),
                 "noise_type": (["normal", "uniform", "exponential"],),
+                "cfg_mode": (["no", "yes"],),
             },
         }
 
@@ -56,8 +58,14 @@ class CADS:
         apply_to="both",
         key="y",
         noise_type="normal",
+        cfg_mode="no",
     ):
         previous_wrapper = model.model_options.get("model_function_wrapper")
+
+        if key == "both":
+            keys = ["y", "c_crossattn"]
+        else:
+            keys = [key]
 
         im = model.model.model_sampling
         self.current_step = start_step
@@ -93,11 +101,10 @@ class CADS:
             if y is None:
                 return None
             noise = generate_noise(y, noise_type=noise_type)
-            gamma = torch.tensor(gamma).to(y)
             psi = rescale
             if psi != 0:
                 y_mean, y_std = y.mean(), y.std()
-            y = gamma.sqrt().item() * y + noise_scale * (1 - gamma).sqrt().item() * noise
+            y = sqrt(gamma) * y + noise_scale * sqrt(1 - gamma) * noise
             # FIXME: does this work at all like it's supposed to?
             if psi != 0:
                 y_scaled = (y - y.mean()) / y.std() * y_std + y_mean
@@ -114,20 +121,39 @@ class CADS:
             c = args["c"]
 
             if noise_scale != 0.0:
-                noise_target = c.get(key, c["c_crossattn"])
-                gamma = cads_gamma(timestep)
-                for i in range(noise_target.size(dim=0)):
-                    if cond_or_uncond[i % len(cond_or_uncond)] == skip:
+                for key in keys:
+                    if key not in c:
                         continue
-                    noise_target[i] = cads_noise(gamma, noise_target[i])
+                    noise_target = c[key].clone()
+                    gamma = cads_gamma(timestep)
+                    for i in range(noise_target.size(dim=0)):
+                        if cond_or_uncond[i % len(cond_or_uncond)] == skip:
+                            continue
+                        noise_target[i] = cads_noise(gamma, noise_target[i])
+                    c[key] = noise_target
 
             if previous_wrapper:
                 return previous_wrapper(apply_model, args)
 
             return apply_model(input_x, timestep, **c)
 
+        def pre_cfg_func(args):
+            cond, uncond = args["conds_out"]
+            timestep = args["timestep"]
+            if noise_scale != 0.0:
+                gamma = cads_gamma(timestep)
+                if apply_to in ["cond", "both"]:
+                    cond = cads_noise(gamma, cond)
+                if uncond is not None and apply_to in ["uncond", "both"]:
+                    uncond = cads_noise(gamma, uncond)
+            return [cond, uncond]
+
+
         m = model.clone()
-        m.set_model_unet_function_wrapper(apply_cads)
+        if cfg_mode == "no":
+            m.set_model_unet_function_wrapper(apply_cads)
+        else:
+            m.set_model_sampler_pre_cfg_function(pre_cfg_func)
 
         return (m,)
 
