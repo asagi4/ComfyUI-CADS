@@ -3,13 +3,14 @@ from math import sqrt
 
 
 def generate_noise(cond, generator=None, noise_type="normal"):
-    t = torch.empty_like(cond)
+    t = torch.empty_like(cond, device="cpu")
     if noise_type == "uniform":
-        return t.uniform_()
+        t.uniform_(generator=generator)
     elif noise_type == "exponential":
-        return t.exponential_()
+        t.exponential_(generator=generator)
     else:
-        return t.normal_()
+        t.normal_(generator=generator)
+    return t.to(cond)
 
 
 # From samplers.py
@@ -32,12 +33,12 @@ class CADS:
             },
             "optional": {
                 "rescale": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0}),
-                "start_step": ("INT", {"min": -1, "max": 10000, "default": -1}),
-                "total_steps": ("INT", {"min": -1, "max": 10000, "default": -1}),
-                "apply_to": (["uncond", "cond", "both"],),
+                "start_step": ("INT", {"min": 0, "max": 10000, "default": 0}),
+                "total_steps": ("INT", {"min": 0, "max": 10000, "default": 0}),
+                "apply_to": (["both", "cond", "uncond"],),
                 "key": (["both", "y", "c_crossattn"],),
                 "noise_type": (["normal", "uniform", "exponential"],),
-                "cfg_mode": (["no", "yes"],),
+                "seed": ("INT", {"min": -1, "max": 2**32, "default": -1}),
             },
         }
 
@@ -59,8 +60,14 @@ class CADS:
         key="y",
         noise_type="normal",
         cfg_mode="no",
+        seed=-1,
     ):
         previous_wrapper = model.model_options.get("model_function_wrapper")
+        generator = None
+        if seed >= 0:
+            print(f"Seeding CADS with {seed=}")
+            generator = torch.Generator()
+            generator.manual_seed(seed)
 
         if key == "both":
             keys = ["y", "c_crossattn"]
@@ -78,16 +85,19 @@ class CADS:
             skip = COND
 
         def cads_gamma(sigma):
+            sigma_max = sigma.max().item()
+            if self.last_sigma is not None and sigma_max > self.last_sigma:
+                # New sampling pass, reset state
+                self.current_step = start_step
+                generator.manual_seed(seed)
+            self.current_step += 1
+            self.last_sigma = sigma_max
+
             if start_step >= total_steps:
                 ts = im.timestep(sigma[0])
                 t = round(ts.item() / 999.0, 2)
             else:
-                sigma_max = sigma.max().item()
-                if self.last_sigma is not None and sigma_max > self.last_sigma:
-                    self.current_step = start_step
                 t = 1.0 - min(1.0, max(self.current_step / total_steps, 0.0))
-                self.current_step += 1
-                self.last_sigma = sigma_max
 
             if t <= t1:
                 r = 1.0
@@ -100,7 +110,7 @@ class CADS:
         def cads_noise(gamma, y):
             if y is None:
                 return None
-            noise = generate_noise(y, noise_type=noise_type)
+            noise = generate_noise(y, generator=generator, noise_type=noise_type)
             psi = rescale
             if psi != 0:
                 y_mean, y_std = y.mean(), y.std()
@@ -148,12 +158,11 @@ class CADS:
                     uncond = cads_noise(gamma, uncond)
             return [cond, uncond]
 
-
         m = model.clone()
-        if cfg_mode == "no":
-            m.set_model_unet_function_wrapper(apply_cads)
-        else:
-            m.set_model_sampler_pre_cfg_function(pre_cfg_func)
+        m.set_model_unet_function_wrapper(apply_cads)
+
+        # This does interesting things too, but is not CADS.
+        # m.set_model_sampler_pre_cfg_function(pre_cfg_func)
 
         return (m,)
 
