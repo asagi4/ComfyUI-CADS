@@ -107,22 +107,54 @@ class CADS:
                 r = (t2 - t) / (t2 - t1)
             return r
 
-        def cads_noise(gamma, y):
-            if y is None:
+        # Definition of cads_noise with improvements
+        def cads_noise(gamma_val, y_original_cond): # gamma_val to avoid conflict if gamma is a var name higher up
+            if y_original_cond is None:
                 return None
-            noise = generate_noise(y, generator=generator, noise_type=noise_type)
-            psi = rescale
-            if psi != 0:
-                y_mean, y_std = y.mean(), y.std()
-            y = sqrt(gamma) * y + noise_scale * sqrt(1 - gamma) * noise
-            # FIXME: does this work at all like it's supposed to?
-            if psi != 0:
-                y_scaled = (y - y.mean()) / y.std() * y_std + y_mean
-                if not y_scaled.isnan().any():
-                    y = psi * y_scaled + (1 - psi) * y
+
+            # Generate base noise (e.g., standard normal)
+            base_noise = generate_noise(y_original_cond, generator=generator, noise_type=noise_type)
+
+            original_mean, original_std = None, None
+            if rescale > 0.0: # 'rescale' is the psi value from the outer scope
+                original_mean = y_original_cond.mean()
+                original_std = y_original_cond.std()
+
+            # Apply scheduled noise: y_orig_contrib + noise_contrib
+            # noise_scale here is from the outer scope (user parameter)
+            y_after_noise_application = (sqrt(gamma_val) * y_original_cond +
+                                         noise_scale * sqrt(max(0.0, 1.0 - gamma_val)) * base_noise) # Added max(0.0, ...) for sqrt safety
+
+            output_y = y_after_noise_application
+
+            if rescale > 0.0: # If psi (rescale parameter) is active
+                current_mean_after_noise = y_after_noise_application.mean()
+                current_std_after_noise = y_after_noise_application.std()
+
+                # Check for non-zero/very small std dev to prevent NaN/Inf during standardization
+                if current_std_after_noise.item() > 1e-6:
+                    y_standardized = (y_after_noise_application - current_mean_after_noise) / current_std_after_noise
+
+                    # Rescale the standardized tensor to match the original_mean and original_std
+                    # Ensure original_std is also safe if it was captured.
+                    y_rescaled_to_original_stats = y_standardized # Default if original_std is not usable
+                    if original_std is not None and original_mean is not None: # Ensure both were captured
+                        if original_std.item() > 1e-6:
+                            y_rescaled_to_original_stats = y_standardized * original_std + original_mean
+                        else: # original_std is too small, just use original_mean to shift
+                            y_rescaled_to_original_stats = y_standardized * 0.0 + original_mean # Effectively sets mean
+
+                    if not y_rescaled_to_original_stats.isnan().any():
+                        # Blend the rescaled tensor and the non-rescaled noised tensor
+                        output_y = rescale * y_rescaled_to_original_stats + (1.0 - rescale) * y_after_noise_application
+                    else:
+                        print("Warning: NaNs detected in y_rescaled_to_original_stats. Falling back to y_after_noise_application.")
+                        # output_y remains y_after_noise_application, which is already set
                 else:
-                    print("Warning, NaNs during rescale")
-            return y
+                    print(f"Warning: Standard deviation of noised tensor ({current_std_after_noise.item()}) is too small for rescaling. Falling back to y_after_noise_application.")
+                    # output_y remains y_after_noise_application, which is already set
+
+            return output_y
 
         def apply_cads(apply_model, args):
             input_x = args["input"]
